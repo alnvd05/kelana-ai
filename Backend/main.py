@@ -1,7 +1,6 @@
 
-# Presentation Layer
-# Menangani interaksi dengan user (input & output) untuk aplikasi KelanaAI
-# Semua logika bisnis/perhitungan didelegasikan ke services.trip_service
+from fastapi import FastAPI
+from pydantic import BaseModel
 
 from services.trip_service import (
     calculate_daily_budget,
@@ -11,93 +10,46 @@ from services.trip_service import (
     get_trip_category,
 )
 
+app = FastAPI()
 
-def input_destinations():
-    # Minta user memasukkan destinasi satu per satu sampai input kosong
-    destinations = []
-    print("Masukkan destinasi (ketik kosong lalu Enter jika sudah selesai):")
-    while True:
-        place = input(f"Destinasi #{len(destinations) + 1}: ").strip()
-        if place == "":
-            break
-        destinations.append(place)
-    return destinations
+class TripRequest(BaseModel):
+    destination: str
+    days: int
+    budget: float
+    month: str
 
+@app.get("/")
+def home():
+    return {"message": "Welcome to KelanaAI"}
 
-def print_destinations(destinations):
-    print("Your Destination")
-    for index, destination in enumerate(destinations):
-        print(f"{index + 1}. {destination}")
-
-
-def print_recommended_places(destinations):
-    print("Recommended Place")
-    print()
-
-    for destination in destinations:
-        print(destination)
-        for place in get_recommended_places(destination):
-            print(f"- {place}")
-
-    print()
-
-
-def print_trip_summary(destinations, days, budget, month):
-    daily_budget = calculate_daily_budget(budget, days)
-    category = get_trip_category(budget)
-    season = get_travel_season(month)
+@app.post("/api/v1/trips")
+def create_trip(request: TripRequest):
+    daily_budget = calculate_daily_budget(request.budget, request.days)
+    category = get_trip_category(request.budget)
+    season = get_travel_season(request.month)
     transportation = get_transportation_recommendation(category)
+    places = get_recommended_places(request.destination)
 
-    print("======================")
-    print("KelanaAI")
-    print()
-    print_destinations(destinations)
-    print()
-    print(f"Days                = {days}")
-    print(f"Budget              = {budget}")
-    print(f"Month               = {month}")
-    print(f"Category            = \"{category}\"")
-    print(f"Season              = \"{season}\"")
-    print(f"Daily Budget        = {daily_budget:.0f} USD/Day")
-    print(f"Recommended Transportation: {transportation}")
-    print()
-    print_recommended_places(destinations)
+    return {
+        "destination": request.destination,
+        "days": request.days,
+        "budget": request.budget,
+        "daily_budget": daily_budget,
+        "category": category,
+        "season": season,
+        "recommended_transport": transportation,
+        "recommended_places": places,
+    }
 
+@app.get("/health")
+def health_check():
+    return {"status": "OK"}
 
-def input_positive_int(prompt):
-    # Minta input angka bulat positif, ulang terus sampai valid
-    while True:
-        value = input(prompt).strip()
-        if value.isdigit() and int(value) > 0:
-            return int(value)
-        print("Input tidak valid. Masukkan angka bulat lebih dari 0.")
+@app.get("/api/v1/recommendations")
+def get_recommendations():
+    return ["Tokyo Tower", "Mount Fuji", "Shibuya"]
 
 
-def input_positive_float(prompt):
-    # Minta input angka (boleh desimal) positif, ulang terus sampai valid
-    while True:
-        value = input(prompt).strip()
-        try:
-            number = float(value)
-            if number > 0:
-                return number
-        except ValueError:
-            pass
-        print("Input tidak valid. Masukkan angka lebih dari 0.")
-
-
-def main():
-    destinations = input_destinations()
-    if not destinations:
-        print("Tidak ada destinasi yang dimasukkan. Program berhenti.")
-        return
-
-    days = input_positive_int("Jumlah hari perjalanan: ")
-    budget = input_positive_float("Total budget (USD): ")
-    month = input("Bulan keberangkatan (contoh: December): ").strip()
-
-    print_trip_summary(destinations, days, budget, month)
-
-
-if __name__ == "__main__":
-    main()
+@app.get("/api/v1/transportations")
+def get_transportations():
+    return ["Bus", "Train", "Flight"]
