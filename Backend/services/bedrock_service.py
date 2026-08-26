@@ -72,15 +72,37 @@ Plan a {days}-day itinerary for {destination}.
 Budget: USD {budget}
 Travel Style: {travel_style}
 
-For each day, please include:
-- Morning: 2-3 specific morning activities
-- Afternoon: cultural sites and experiences
-- Evening: dinner spots and nightlife suggestions
-- Estimated daily budget (broken down by category if possible)
-- Local food recommendations
-- Transportation suggestions
+Respond with ONLY a single valid JSON object. No markdown, no code fences, no text before or after the JSON. Match this exact structure:
 
-Format your response as Markdown with headers (##) and bullet lists (-)."""
+{{
+  "itinerary": [
+    {{
+      "day": 1,
+      "location": "city or area for this day",
+      "morning": "2-3 specific morning activities",
+      "afternoon": "cultural sites and experiences",
+      "evening": "dinner spots and nightlife suggestions",
+      "daily_budget_usd": "e.g. $60"
+    }}
+  ],
+  "travel_tips": ["short practical tip", "..."],
+  "local_food_recommendations": ["dish or restaurant name", "..."],
+  "budget_breakdown": {{
+    "accommodation": "USD amount",
+    "transportation": "USD amount",
+    "food": "USD amount",
+    "activities": "USD amount",
+    "total_estimated": "USD amount"
+  }}
+}}
+
+Rules:
+- "itinerary" must contain exactly {days} objects, one per day, numbered sequentially starting at 1.
+- Use USD ($) for every monetary figure. Do not use any other currency.
+- "total_estimated" must equal the actual sum of accommodation + transportation + food + activities. Check your arithmetic before answering.
+- "travel_tips" should have 3-5 items.
+- "local_food_recommendations" should have 3-6 items.
+- Output must be valid, parseable JSON. No trailing commas, no comments, no markdown formatting inside the values."""
 
         try:
             response = self.bedrock_runtime.converse(
@@ -102,9 +124,16 @@ Format your response as Markdown with headers (##) and bullet lists (-)."""
 
             recommendation_text = response["output"]["message"]["content"][0]["text"]
 
+            cleaned_text = recommendation_text.strip()
+            if cleaned_text.startswith("```"):
+                cleaned_text = cleaned_text.strip("`")
+                if cleaned_text.lower().startswith("json"):
+                    cleaned_text = cleaned_text[4:]
+                cleaned_text = cleaned_text.strip()
+                
             return {
                 "success": True,
-                "recommendation": recommendation_text,
+                "recommendation": cleaned_text,
                 "model_id": self.model_id,
                 "metadata": {
                     "destination": destination,
