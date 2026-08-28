@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -17,9 +20,12 @@ app = FastAPI()
 
 from fastapi.middleware.cors import CORSMiddleware
 
+load_dotenv()
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -99,21 +105,26 @@ def create_trip(request: TripRequest):
 @app.get("/api/v1/trips")
 def list_trips():
     db = SessionLocal()
-    trips = db.query(Trip).all()
-    db.close()
-    return trips
+    try:
+        # Dashboard reads saved data directly from PostgreSQL. A higher ID is
+        # the most recently created trip, so new itineraries appear first.
+        return db.query(Trip).order_by(Trip.id.desc()).all()
+    finally:
+        db.close()
 
 
 @app.get("/api/v1/trips/{trip_id}")
 def get_trip(trip_id: int):
     db = SessionLocal()
-    trip = db.query(Trip).filter(Trip.id == trip_id).first()
-    db.close()
+    try:
+        trip = db.query(Trip).filter(Trip.id == trip_id).first()
 
-    if trip is None:
-        raise HTTPException(status_code=404, detail=f"Trip with id {trip_id} not found")
+        if trip is None:
+            raise HTTPException(status_code=404, detail=f"Trip with id {trip_id} not found")
 
-    return trip
+        return trip
+    finally:
+        db.close()
 
 
 # PUT /api/v1/trips/{trip_id} — update budget sebuah trip yang sudah ada,

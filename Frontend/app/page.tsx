@@ -1,7 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
+
+import { createTrip } from "@/services/tripService";
 
 /**
  * Fonts
@@ -15,10 +19,7 @@ const monoFont =
 const bodyFont =
   "ui-sans-serif, -apple-system, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif";
 
-const TRAVEL_STYLES = ["Family", "Backpacker"] as const;
-
-/** Change this if your FastAPI runs on a different host/port. */
-const API_URL = "http://localhost:8000/api/v1/trips";
+const TRAVEL_STYLES = ["Family", "Solo", "Couple", "Backpacker"] as const;
 
 /** Turns free text into a 3-letter "airport style" code, e.g. "Kyoto" -> "KYO" */
 function toRouteCode(value: string) {
@@ -143,6 +144,7 @@ type TripResult = {
 type Status = "idle" | "generating" | "ready";
 
 export default function Page() {
+  const router = useRouter();
   const [destination, setDestination] = useState("");
   const [budget, setBudget] = useState<number | "">(2000);
   const [days, setDays] = useState(5);
@@ -175,26 +177,15 @@ export default function Page() {
     setTripResult(null);
 
     try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination,
-          budget: budget === "" ? 0 : budget,
-          days,
-          month: getMonthName(departureDate),
-          travel_style: style === "Other" ? customStyle || "Custom" : style,
-        }),
+      const trip = await createTrip({
+        destination: destination.trim(),
+        budget: budget === "" ? 0 : budget,
+        days,
+        month: getMonthName(departureDate),
+        travel_style: style === "Other" ? customStyle.trim() || "Custom" : style,
       });
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => null);
-        throw new Error(errBody?.detail || `Request failed (${response.status})`);
-      }
-
-      const trip: TripResult = await response.json();
-      setTripResult(trip);
       setStatus("ready");
+      router.push(`/trips/${trip.id}`);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
       setStatus("idle");
@@ -232,7 +223,7 @@ export default function Page() {
             <div className="absolute inset-0 flex flex-col justify-between p-6 text-white sm:p-9 lg:p-12">
               <div className="flex items-center justify-between gap-4">
                 <span className="rounded-full border border-white/25 bg-[#081a1c]/35 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
-                  Featured escape
+                  Featured Destination
                 </span>
                 <span className="text-xs font-medium text-white/80">Bali, Indonesia</span>
               </div>
@@ -285,6 +276,12 @@ export default function Page() {
                 Kelana<span>AI</span>
               </h1>
               <p className="tagline">Plan your next adventure</p>
+              <Link
+                href="/trips"
+                className="mt-4 inline-flex rounded-full border border-[#c79a44]/35 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#8a6a2e] transition hover:border-[#c79a44] hover:bg-white"
+              >
+                View My Trips →
+              </Link>
             </header>
 
             <form className="ticket" onSubmit={handleSubmit}>
@@ -327,7 +324,7 @@ export default function Page() {
                   id="destination"
                   name="destination"
                   type="text"
-                  placeholder="Japan, South Korea, Italy\u2026"
+                  placeholder="Japan, South Korea, Italy…"
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   autoComplete="off"
@@ -425,7 +422,7 @@ export default function Page() {
                 <div className="input-shell" style={{ marginTop: 8 }}>
                   <input
                     type="text"
-                    placeholder="Describe your style\u2026"
+                    placeholder="Describe your style…"
                     value={customStyle}
                     onChange={(e) => setCustomStyle(e.target.value)}
                     autoFocus
@@ -443,7 +440,7 @@ export default function Page() {
               {status === "generating" ? (
                 <span className="cta-loading">
                   <span className="spinner" aria-hidden="true" />
-                  {"Generating\u2026"}
+                  {"Generating…"}
                 </span>
               ) : (
                 "Generate AI Trip"
@@ -454,7 +451,7 @@ export default function Page() {
               {errorMsg
                 ? `Couldn't reach KelanaAI \u2014 ${errorMsg}`
                 : status === "ready"
-                ? "Itinerary ready \u2014 scroll down to see your recommendation."
+                ? "Trip saved — opening your AI recommendation."
                 : "Four fields, one button \u2014 that's all Kelana needs to start planning."}
             </p>
           </div>
