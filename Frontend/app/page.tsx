@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
+import { useLanguage } from "@/components/LanguageProvider";
+import { ProtectedApp } from "@/components/ProtectedApp";
 import { createTrip } from "@/services/tripService";
 
 /**
@@ -20,6 +22,117 @@ const bodyFont =
   "ui-sans-serif, -apple-system, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif";
 
 const TRAVEL_STYLES = ["Family", "Solo", "Couple", "Backpacker"] as const;
+
+const PLANNER_COPY = {
+  en: {
+    imageAlt: "Lush cliffs meeting the turquoise sea in Bali, Indonesia",
+    featured: "Featured Destination",
+    bali: "Bali, Indonesia",
+    heroKicker: "Go farther, plan smarter",
+    heroTitle: "Your next story starts somewhere beautiful.",
+    heroBody: "Tell KelanaAI where you want to go. Get a practical, personalized itinerary in moments.",
+    start: "Start planning",
+    photo: "Photo by Melvin on Unsplash",
+    request: "Itinerary Request",
+    tagline: "Plan your next adventure",
+    viewTrips: "View My Trips",
+    from: "From",
+    to: "To",
+    destination: "Destination",
+    destinationPlaceholder: "Japan, South Korea, Italy…",
+    budget: "Budget (USD)",
+    days: "Days",
+    fewerDays: "Fewer days",
+    moreDays: "More days",
+    departure: "Departure date",
+    travelStyle: "Travel style",
+    other: "Other",
+    custom: "Custom",
+    describeStyle: "Describe your style…",
+    generating: "Generating…",
+    generate: "Generate AI Trip",
+    reachError: "Couldn't reach KelanaAI",
+    saved: "Trip saved — opening your AI recommendation.",
+    helper: "Four fields, one button — that's all Kelana needs to start planning.",
+    errorFallback: "Something went wrong.",
+    destinationResult: "Destination",
+    budgetResult: "Budget",
+    itinerary: "Daily Itinerary",
+    day: "Day",
+    morning: "Morning",
+    afternoon: "Afternoon",
+    evening: "Evening",
+    estimated: "Estimated budget",
+    tips: "Travel Tips",
+    foodRecommendations: "Local Food Recommendations",
+    breakdown: "Estimated Budget Breakdown",
+    accommodation: "Accommodation",
+    transportation: "Transportation",
+    food: "Food",
+    activities: "Activities",
+    total: "Total",
+    aiRecommendation: "AI Recommendation",
+    noRecommendation: "No recommendation text was returned.",
+    another: "Plan Another Trip",
+    footer: "Your trip, thoughtfully planned.",
+    footerNavigation: "Footer navigation",
+    styles: { Family: "Family", Solo: "Solo", Couple: "Couple", Backpacker: "Backpacker" },
+  },
+  id: {
+    imageAlt: "Tebing hijau bertemu laut biru di Bali, Indonesia",
+    featured: "Destinasi Pilihan",
+    bali: "Bali, Indonesia",
+    heroKicker: "Jelajah lebih jauh, rencanakan lebih cerdas",
+    heroTitle: "Cerita berikutnya dimulai di tempat yang indah.",
+    heroBody: "Ceritakan tujuan Anda kepada KelanaAI. Dapatkan itinerary praktis dan personal dalam sekejap.",
+    start: "Mulai merencanakan",
+    photo: "Foto oleh Melvin di Unsplash",
+    request: "Permintaan Itinerary",
+    tagline: "Rencanakan petualangan berikutnya",
+    viewTrips: "Lihat Trip Saya",
+    from: "Dari",
+    to: "Ke",
+    destination: "Destinasi",
+    destinationPlaceholder: "Jepang, Korea Selatan, Italia…",
+    budget: "Budget (USD)",
+    days: "Hari",
+    fewerDays: "Kurangi hari",
+    moreDays: "Tambah hari",
+    departure: "Tanggal keberangkatan",
+    travelStyle: "Gaya perjalanan",
+    other: "Lainnya",
+    custom: "Kustom",
+    describeStyle: "Jelaskan gaya perjalanan Anda…",
+    generating: "Membuat trip…",
+    generate: "Buat Trip dengan AI",
+    reachError: "Tidak dapat menghubungi KelanaAI",
+    saved: "Trip tersimpan — membuka rekomendasi AI Anda.",
+    helper: "Empat isian, satu tombol — Kelana siap mulai merencanakan.",
+    errorFallback: "Terjadi kesalahan.",
+    destinationResult: "Destinasi",
+    budgetResult: "Budget",
+    itinerary: "Itinerary Harian",
+    day: "Hari",
+    morning: "Pagi",
+    afternoon: "Siang",
+    evening: "Malam",
+    estimated: "Estimasi budget",
+    tips: "Tips Perjalanan",
+    foodRecommendations: "Rekomendasi Kuliner Lokal",
+    breakdown: "Estimasi Rincian Budget",
+    accommodation: "Akomodasi",
+    transportation: "Transportasi",
+    food: "Makanan",
+    activities: "Aktivitas",
+    total: "Total",
+    aiRecommendation: "Rekomendasi AI",
+    noRecommendation: "Tidak ada teks rekomendasi yang dikembalikan.",
+    another: "Rencanakan Trip Lain",
+    footer: "Trip Anda, direncanakan dengan matang.",
+    footerNavigation: "Navigasi footer",
+    styles: { Family: "Keluarga", Solo: "Solo", Couple: "Berdua", Backpacker: "Backpacker" },
+  },
+} as const;
 
 /** Turns free text into a 3-letter "airport style" code, e.g. "Kyoto" -> "KYO" */
 function toRouteCode(value: string) {
@@ -143,8 +256,10 @@ type TripResult = {
 
 type Status = "idle" | "generating" | "ready";
 
-export default function Page() {
+function PlannerPage() {
   const router = useRouter();
+  const { locale } = useLanguage();
+  const copy = PLANNER_COPY[locale];
   const [destination, setDestination] = useState("");
   const [budget, setBudget] = useState<number | "">(2000);
   const [days, setDays] = useState(5);
@@ -187,7 +302,7 @@ export default function Page() {
       setStatus("ready");
       router.push(`/trips/${trip.id}`);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+      setErrorMsg(err instanceof Error ? err.message : copy.errorFallback);
       setStatus("idle");
     }
   };
@@ -198,7 +313,10 @@ export default function Page() {
     setStatus("idle");
   };
 
-  const activeStyle = style === "Other" ? customStyle || "Custom" : style;
+  const activeStyleLabel =
+    style === "Other"
+      ? customStyle || copy.custom
+      : copy.styles[style as keyof typeof copy.styles];
   const routeCode = toRouteCode(destination);
   const plan = tripResult?.ai_recommendation ? parseAiPlan(tripResult.ai_recommendation) : null;
   const legacyItinerary =
@@ -213,7 +331,7 @@ export default function Page() {
           <aside className="hero-panel relative min-h-[340px] overflow-hidden lg:min-h-[760px]">
             <Image
               src="/bali-coast.jpg"
-              alt="Lush cliffs meeting the turquoise sea in Bali, Indonesia"
+              alt={copy.imageAlt}
               fill
               priority
               sizes="(max-width: 1023px) 100vw, 55vw"
@@ -223,26 +341,26 @@ export default function Page() {
             <div className="absolute inset-0 flex flex-col justify-between p-6 text-white sm:p-9 lg:p-12">
               <div className="flex items-center justify-between gap-4">
                 <span className="rounded-full border border-white/25 bg-[#081a1c]/35 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur-md">
-                  Featured Destination
+                  {copy.featured}
                 </span>
-                <span className="text-xs font-medium text-white/80">Bali, Indonesia</span>
+                <span className="text-xs font-medium text-white/80">{copy.bali}</span>
               </div>
 
               <div className="max-w-xl">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-[#f3c769]">
-                  Go farther, plan smarter
+                  {copy.heroKicker}
                 </p>
                 <h2 className="max-w-lg text-4xl font-black leading-[0.98] tracking-tight sm:text-5xl lg:text-6xl">
-                  Your next story starts somewhere beautiful.
+                  {copy.heroTitle}
                 </h2>
                 <p className="mt-5 max-w-md text-sm leading-6 text-white/80 sm:text-base">
-                  Tell KelanaAI where you want to go. Get a practical, personalized itinerary in moments.
+                  {copy.heroBody}
                 </p>
                 <a
                   href="#planner"
                   className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#f6eedd] px-5 py-3 text-sm font-bold text-[#0e2a2c] transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f3c769] lg:hidden"
                 >
-                  Start planning <span aria-hidden="true">&darr;</span>
+                  {copy.start} <span aria-hidden="true">&darr;</span>
                 </a>
               </div>
 
@@ -252,14 +370,14 @@ export default function Page() {
                 rel="noreferrer"
                 className="w-fit text-[10px] text-white/55 underline-offset-4 hover:text-white hover:underline"
               >
-                Photo by Melvin on Unsplash
+                {copy.photo}
               </a>
             </div>
           </aside>
 
           <div id="planner" className="booking-panel scroll-mt-4 px-5 py-8 sm:px-8 lg:px-10 lg:py-12">
             <header className="page-head">
-              <p className="eyebrow">Itinerary Request &middot; No. {ticketNo}</p>
+              <p className="eyebrow">{copy.request} &middot; No. {ticketNo}</p>
               <h1 style={{ fontFamily: displayFont }}>
                 <svg
                   className="compass"
@@ -275,12 +393,12 @@ export default function Page() {
                 </svg>
                 Kelana<span>AI</span>
               </h1>
-              <p className="tagline">Plan your next adventure</p>
+              <p className="tagline">{copy.tagline}</p>
               <Link
                 href="/trips"
                 className="mt-4 inline-flex rounded-full border border-[#c79a44]/35 px-4 py-2 text-xs font-bold uppercase tracking-[0.12em] text-[#8a6a2e] transition hover:border-[#c79a44] hover:bg-white"
               >
-                View My Trips →
+                {copy.viewTrips} →
               </Link>
             </header>
 
@@ -288,7 +406,7 @@ export default function Page() {
           {/* Stub: from -> to, updates live as the destination is typed */}
           <div className="stub">
             <div className="stub-leg">
-              <span className="stub-label">From</span>
+              <span className="stub-label">{copy.from}</span>
               <span className="stub-code" style={{ fontFamily: monoFont }}>HOM</span>
             </div>
             <svg className="stub-plane" width="22" height="14" viewBox="0 0 22 14" fill="none" aria-hidden="true">
@@ -301,7 +419,7 @@ export default function Page() {
               />
             </svg>
             <div className="stub-leg stub-leg--right">
-              <span className="stub-label">To</span>
+              <span className="stub-label">{copy.to}</span>
               <span className="stub-code" style={{ fontFamily: monoFont }}>{routeCode}</span>
             </div>
           </div>
@@ -310,7 +428,7 @@ export default function Page() {
 
           <div className="ticket-body">
             <div className="field">
-              <label htmlFor="destination">Destination</label>
+              <label htmlFor="destination">{copy.destination}</label>
               <div className="input-shell">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path
@@ -324,7 +442,7 @@ export default function Page() {
                   id="destination"
                   name="destination"
                   type="text"
-                  placeholder="Japan, South Korea, Italy…"
+                  placeholder={copy.destinationPlaceholder}
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
                   autoComplete="off"
@@ -334,7 +452,7 @@ export default function Page() {
 
             <div className="field-row grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="field">
-                <label htmlFor="budget">Budget (USD)</label>
+                <label htmlFor="budget">{copy.budget}</label>
                 <div className="input-shell">
                   <span className="prefix">$</span>
                   <input
@@ -350,11 +468,11 @@ export default function Page() {
               </div>
 
               <div className="field">
-                <label htmlFor="days">Days</label>
+                <label htmlFor="days">{copy.days}</label>
                 <div className="input-shell input-shell--stepper">
                   <button
                     type="button"
-                    aria-label="Fewer days"
+                    aria-label={copy.fewerDays}
                     onClick={() => setDays((d) => Math.max(1, d - 1))}
                   >
                     &minus;
@@ -372,7 +490,7 @@ export default function Page() {
                   />
                   <button
                     type="button"
-                    aria-label="More days"
+                    aria-label={copy.moreDays}
                     onClick={() => setDays((d) => Math.min(30, d + 1))}
                   >
                     +
@@ -382,7 +500,7 @@ export default function Page() {
             </div>
 
             <div className="field">
-              <label htmlFor="departure-date">Departure date</label>
+              <label htmlFor="departure-date">{copy.departure}</label>
               <div className="input-shell">
                 <input
                   id="departure-date"
@@ -396,8 +514,8 @@ export default function Page() {
             </div>
 
             <div className="field">
-              <label htmlFor="travel-style">Travel style</label>
-              <div className="chips" role="group" aria-label="Travel style" id="travel-style">
+              <label htmlFor="travel-style">{copy.travelStyle}</label>
+              <div className="chips" role="group" aria-label={copy.travelStyle} id="travel-style">
                 {TRAVEL_STYLES.map((opt) => (
                   <button
                     key={opt}
@@ -406,7 +524,7 @@ export default function Page() {
                     onClick={() => setStyle(opt)}
                     aria-pressed={style === opt}
                   >
-                    {opt}
+                    {copy.styles[opt]}
                   </button>
                 ))}
                 <button
@@ -415,14 +533,14 @@ export default function Page() {
                   onClick={() => setStyle("Other")}
                   aria-pressed={style === "Other"}
                 >
-                  Other
+                  {copy.other}
                 </button>
               </div>
               {style === "Other" && (
                 <div className="input-shell" style={{ marginTop: 8 }}>
                   <input
                     type="text"
-                    placeholder="Describe your style…"
+                    placeholder={copy.describeStyle}
                     value={customStyle}
                     onChange={(e) => setCustomStyle(e.target.value)}
                     autoFocus
@@ -433,26 +551,26 @@ export default function Page() {
 
             <div className="barcode" role="presentation" />
             <p className="ticket-meta" style={{ fontFamily: monoFont }}>
-              {routeCode} &bull; {days}D &bull; {activeStyle.toUpperCase()}
+              {routeCode} &bull; {days}D &bull; {activeStyleLabel.toUpperCase()}
             </p>
 
             <button type="submit" className="cta" disabled={status === "generating"}>
               {status === "generating" ? (
                 <span className="cta-loading">
                   <span className="spinner" aria-hidden="true" />
-                  {"Generating…"}
+                  {copy.generating}
                 </span>
               ) : (
-                "Generate AI Trip"
+                copy.generate
               )}
             </button>
 
             <p className={`status-line ${errorMsg ? "status-line--error" : ""}`} aria-live="polite">
               {errorMsg
-                ? `Couldn't reach KelanaAI \u2014 ${errorMsg}`
+                ? `${copy.reachError} \u2014 ${errorMsg}`
                 : status === "ready"
-                ? "Trip saved — opening your AI recommendation."
-                : "Four fields, one button \u2014 that's all Kelana needs to start planning."}
+                ? copy.saved
+                : copy.helper}
             </p>
           </div>
             </form>
@@ -463,37 +581,37 @@ export default function Page() {
           <div className="result-panel">
             <div className="result-summary">
               <span>
-                Destination: <strong>{tripResult.destination}</strong>
+                {copy.destinationResult}: <strong>{tripResult.destination}</strong>
               </span>
               <span>
-                Budget: <strong>{tripResult.budget.toLocaleString("en-US")}</strong>
+                {copy.budgetResult}: <strong>{tripResult.budget.toLocaleString("en-US")}</strong>
               </span>
             </div>
 
             {plan ? (
               <>
-                <p className="result-title">Daily Itinerary</p>
+                <p className="result-title">{copy.itinerary}</p>
                 {plan.itinerary.map((d, i) => (
                   <div className="day-card" key={i}>
                     <div className="day-card-head">
-                      <span className="day-card-title">Day {d.day}</span>
+                      <span className="day-card-title">{copy.day} {d.day}</span>
                       {d.location && <span className="day-card-location">{d.location}</span>}
                     </div>
-                    <p className="day-card-subhead">Morning</p>
+                    <p className="day-card-subhead">{copy.morning}</p>
                     <p className="day-card-line">{renderInline(d.morning)}</p>
-                    <p className="day-card-subhead">Afternoon</p>
+                    <p className="day-card-subhead">{copy.afternoon}</p>
                     <p className="day-card-line">{renderInline(d.afternoon)}</p>
-                    <p className="day-card-subhead">Evening</p>
+                    <p className="day-card-subhead">{copy.evening}</p>
                     <p className="day-card-line">{renderInline(d.evening)}</p>
                     {d.daily_budget_usd && (
-                      <p className="day-card-budget">Estimated budget: {d.daily_budget_usd}</p>
+                      <p className="day-card-budget">{copy.estimated}: {d.daily_budget_usd}</p>
                     )}
                   </div>
                 ))}
 
                 {plan.travel_tips?.length > 0 && (
                   <div className="section-block">
-                    <p className="result-title">Travel Tips</p>
+                    <p className="result-title">{copy.tips}</p>
                     <ul className="plain-list">
                       {plan.travel_tips.map((tip, i) => (
                         <li key={i}>{renderInline(tip)}</li>
@@ -504,7 +622,7 @@ export default function Page() {
 
                 {plan.local_food_recommendations?.length > 0 && (
                   <div className="section-block">
-                    <p className="result-title">Local Food Recommendations</p>
+                    <p className="result-title">{copy.foodRecommendations}</p>
                     <ul className="plain-list">
                       {plan.local_food_recommendations.map((food, i) => (
                         <li key={i}>{renderInline(food)}</li>
@@ -515,26 +633,26 @@ export default function Page() {
 
                 {plan.budget_breakdown && (
                   <div className="section-block">
-                    <p className="result-title">Estimated Budget Breakdown</p>
+                    <p className="result-title">{copy.breakdown}</p>
                     <div className="budget-table">
                       <div className="budget-row">
-                        <span>Accommodation</span>
+                        <span>{copy.accommodation}</span>
                         <span>{plan.budget_breakdown.accommodation}</span>
                       </div>
                       <div className="budget-row">
-                        <span>Transportation</span>
+                        <span>{copy.transportation}</span>
                         <span>{plan.budget_breakdown.transportation}</span>
                       </div>
                       <div className="budget-row">
-                        <span>Food</span>
+                        <span>{copy.food}</span>
                         <span>{plan.budget_breakdown.food}</span>
                       </div>
                       <div className="budget-row">
-                        <span>Activities</span>
+                        <span>{copy.activities}</span>
                         <span>{plan.budget_breakdown.activities}</span>
                       </div>
                       <div className="budget-row budget-row--total">
-                        <span>Total</span>
+                        <span>{copy.total}</span>
                         <span>{plan.budget_breakdown.total_estimated}</span>
                       </div>
                     </div>
@@ -543,12 +661,12 @@ export default function Page() {
               </>
             ) : legacyItinerary.length > 0 ? (
               <>
-                <p className="result-title">AI Recommendation</p>
+                <p className="result-title">{copy.aiRecommendation}</p>
                 {legacyItinerary.map((d, i) => (
                   <div className="day-card" key={i}>
                     {(d.day || d.location) && (
                       <div className="day-card-head">
-                        {d.day && <span className="day-card-title">Day {d.day}</span>}
+                        {d.day && <span className="day-card-title">{copy.day} {d.day}</span>}
                         {d.location && <span className="day-card-location">{d.location}</span>}
                       </div>
                     )}
@@ -577,18 +695,18 @@ export default function Page() {
                 ))}
               </>
             ) : (
-              <p className="status-line">No recommendation text was returned.</p>
+              <p className="status-line">{copy.noRecommendation}</p>
             )}
 
             <button type="button" className="cta cta--ghost" onClick={handleReset}>
-              Plan Another Trip
+              {copy.another}
             </button>
           </div>
         )}
       </section>
       <footer className="site-footer relative z-10 mt-8 flex w-full max-w-[1180px] flex-col items-center justify-between gap-4 border-t border-[#c79a44]/25 px-2 pt-6 text-center text-xs text-[#f6eedd]/60 sm:flex-row sm:text-left">
-        <p>&copy; {new Date().getFullYear()} KelanaAI. Your trip, thoughtfully planned.</p>
-        <nav className="site-footer-links flex items-center gap-3" aria-label="Footer navigation">
+        <p>&copy; {new Date().getFullYear()} KelanaAI. {copy.footer}</p>
+        <nav className="site-footer-links flex items-center gap-3" aria-label={copy.footerNavigation}>
           <a className="transition hover:text-[#f3c769]" href="#planner">Planner Alvin Djunaedi</a>
           <span aria-hidden="true">&middot;</span>
           <a className="transition hover:text-[#f3c769]" href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API Docs</a>
@@ -1106,5 +1224,13 @@ export default function Page() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function Page() {
+  return (
+    <ProtectedApp>
+      <PlannerPage />
+    </ProtectedApp>
   );
 }

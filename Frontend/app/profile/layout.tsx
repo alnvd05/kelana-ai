@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { ProtectedApp } from "@/components/ProtectedApp";
 
 export const metadata: Metadata = {
-  title: "My Trips | KelanaAI",
-  description: "Browse and revisit every itinerary saved by KelanaAI.",
+  title: "Traveler Profile | KelanaAI",
+  description: "View your KelanaAI traveler details and generated trips.",
 };
 
-export default function TripsLayout({ children }: { children: ReactNode }) {
+export default function ProfileLayout({ children }: { children: ReactNode }) {
   return <ProtectedApp>{children}</ProtectedApp>;
 }
