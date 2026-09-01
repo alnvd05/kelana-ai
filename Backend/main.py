@@ -14,6 +14,12 @@ from services.trip_service import (
     get_trip_category,
 )
 from services.bedrock_service import get_bedrock_service
+from services.kb_services import (
+    KnowledgeBaseAnswer,
+    KnowledgeBaseConfigurationError,
+    KnowledgeBaseQueryError,
+    ask_knowledge_base,
+)
 from services.auth_service import (
     EmailAlreadyRegisteredError,
     InvalidCredentialsError,
@@ -135,9 +141,73 @@ class CurrentUserResponse(BaseModel):
     total_trips: int
 
 
+class QuestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, value: str) -> str:
+        normalized_question = value.strip()
+        if not normalized_question:
+            raise ValueError("Question must not be blank")
+        return normalized_question
+
+
+class KnowledgeSourceResponse(BaseModel):
+    name: str
+    uri: str | None = None
+
+
+class QuestionResponse(BaseModel):
+    question: str
+    answer: str
+    sources: list[KnowledgeSourceResponse]
+
+
 @app.get("/")
 def home():
     return {"message": "Welcome to KelanaAI"}
+
+
+@app.post(
+    "/api/v1/ask",
+    response_model=QuestionResponse,
+    responses={
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Amazon Bedrock could not return an answer"
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "Knowledge Base configuration is incomplete"
+        },
+    },
+)
+def ask_endpoint(
+    request: QuestionRequest,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        result: KnowledgeBaseAnswer = ask_knowledge_base(request.question)
+    except KnowledgeBaseConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Knowledge Base is not configured",
+        ) from exc
+    except KnowledgeBaseQueryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Knowledge Base request failed",
+        ) from exc
+
+    return QuestionResponse(
+        question=request.question,
+        answer=result.text,
+        sources=[
+            KnowledgeSourceResponse(name=source.name, uri=source.uri)
+            for source in result.sources
+        ],
+    )
 
 
 @app.post(
