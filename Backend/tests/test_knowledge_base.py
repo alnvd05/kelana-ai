@@ -4,197 +4,148 @@ from unittest.mock import MagicMock, patch
 
 from botocore.exceptions import ClientError
 from fastapi import HTTPException
-from pydantic import ValidationError
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import main
-from services.kb_services import (
-    KnowledgeBaseAnswer,
-    KnowledgeBaseConfigurationError,
-    KnowledgeBaseQueryError,
-    KnowledgeBaseService,
-    KnowledgeSource,
-)
+import services.kb_service as kb_service
 
 
 class KnowledgeBaseServiceTests(unittest.TestCase):
-    def test_ask_uses_retrieve_and_generate_and_returns_grounded_answer(self):
+    def setUp(self):
+        knowledge_base_id_patch = patch.object(
+            kb_service,
+            "KNOWLEDGE_BASE_ID",
+            "KB12345678",
+        )
+        knowledge_base_id_patch.start()
+        self.addCleanup(knowledge_base_id_patch.stop)
+
+    def test_client_uses_bedrock_agent_runtime_and_configured_region(self):
+        with patch.object(kb_service.boto3, "client") as boto3_client:
+            kb_service.get_bedrock_agent_runtime_client()
+
+        boto3_client.assert_called_once_with(
+            service_name="bedrock-agent-runtime",
+            region_name=kb_service.AWS_REGION,
+        )
+
+    def test_retrieve_and_generate_uses_managed_search_and_joins_snippets(self):
         client = MagicMock()
-        client.retrieve_and_generate.return_value = {
-            "output": {"text": "  Indonesian travelers need a visa.  "},
-            "citations": [
-                {
-                    "retrievedReferences": [
-                        {
-                            "location": {
-                                "s3Location": {
-                                    "uri": "s3://kelana-travel-docs/visa-japan.pdf"
-                                }
-                            },
-                            "metadata": {},
-                        }
-                    ]
-                }
-            ],
+        client.retrieve.return_value = {
+            "retrievalResults": [
+                {"content": {"text": "  Indonesian travelers need a visa.  "}},
+                {"content": {"text": " A passport must be valid. "}},
+                {"content": {"text": "  "}},
+            ]
         }
-        service = KnowledgeBaseService(
-            client=client,
-            knowledge_base_id="KB12345678",
-            model_arn="arn:aws:bedrock:ap-southeast-1::foundation-model/test-model",
-            aws_region="ap-southeast-1",
-        )
 
-        answer = service.ask("  Do I need a visa?  ")
+        with patch.object(
+            kb_service,
+            "get_bedrock_agent_runtime_client",
+            return_value=client,
+        ):
+            answer = kb_service.retrieve_and_generate("Do I need a visa?")
 
-        self.assertEqual(answer.text, "Indonesian travelers need a visa.")
         self.assertEqual(
-            answer.sources,
-            (
-                KnowledgeSource(
-                    name="visa-japan.pdf",
-                    uri="s3://kelana-travel-docs/visa-japan.pdf",
-                ),
-            ),
+            answer,
+            "Indonesian travelers need a visa.\n\nA passport must be valid.",
         )
-        client.retrieve_and_generate.assert_called_once_with(
-            input={"text": "Do I need a visa?"},
-            retrieveAndGenerateConfiguration={
-                "type": "KNOWLEDGE_BASE",
-                "knowledgeBaseConfiguration": {
-                    "knowledgeBaseId": "KB12345678",
-                    "modelArn": (
-                        "arn:aws:bedrock:ap-southeast-1::foundation-model/test-model"
-                    ),
+        client.retrieve.assert_called_once_with(
+            knowledgeBaseId="KB12345678",
+            retrievalQuery={"text": "Do I need a visa?"},
+            retrievalConfiguration={
+                "managedSearchConfiguration": {
+                    "numberOfResults": 5,
                 },
             },
         )
 
-    def test_missing_configuration_is_reported_before_client_creation(self):
-        with patch.dict(os.environ, {}, clear=True):
+    def test_missing_knowledge_base_id_raises_value_error(self):
+        with patch.object(kb_service, "KNOWLEDGE_BASE_ID", None):
             with self.assertRaisesRegex(
-                KnowledgeBaseConfigurationError,
-                "KNOWLEDGE_BASE_ID.*KNOWLEDGE_BASE_MODEL_ARN.*AWS_REGION",
+                ValueError,
+                "KNOWLEDGE_BASE_ID is not set",
             ):
-                KnowledgeBaseService()
+                kb_service.retrieve_and_generate("What documents do I need?")
 
-    def test_aws_client_error_is_translated_to_query_error(self):
+    def test_empty_retrieval_returns_empty_string(self):
         client = MagicMock()
-        client.retrieve_and_generate.side_effect = ClientError(
+        client.retrieve.return_value = {"retrievalResults": []}
+
+        with patch.object(
+            kb_service,
+            "get_bedrock_agent_runtime_client",
+            return_value=client,
+        ):
+            answer = kb_service.retrieve_and_generate("Unknown question")
+
+        self.assertEqual(answer, "")
+
+    def test_aws_client_error_is_propagated(self):
+        client = MagicMock()
+        client.retrieve.side_effect = ClientError(
             {
                 "Error": {
                     "Code": "AccessDeniedException",
                     "Message": "denied",
                 }
             },
-            "RetrieveAndGenerate",
-        )
-        service = KnowledgeBaseService(
-            client=client,
-            knowledge_base_id="KB12345678",
-            model_arn="arn:aws:bedrock:ap-southeast-1::foundation-model/test-model",
-            aws_region="ap-southeast-1",
+            "Retrieve",
         )
 
-        with self.assertRaises(KnowledgeBaseQueryError):
-            service.ask("What documents do I need?")
-
-    def test_empty_answer_is_rejected(self):
-        client = MagicMock()
-        client.retrieve_and_generate.return_value = {"output": {"text": "  "}}
-        service = KnowledgeBaseService(
-            client=client,
-            knowledge_base_id="KB12345678",
-            model_arn="arn:aws:bedrock:ap-southeast-1::foundation-model/test-model",
-            aws_region="ap-southeast-1",
-        )
-
-        with self.assertRaises(KnowledgeBaseQueryError):
-            service.ask("What documents do I need?")
-
-    def test_duplicate_references_are_returned_once(self):
-        reference = {
-            "location": {
-                "s3Location": {"uri": "s3://kelana-travel-docs/visa-japan.pdf"}
-            },
-            "metadata": {},
-        }
-        client = MagicMock()
-        client.retrieve_and_generate.return_value = {
-            "output": {"text": "A grounded answer."},
-            "citations": [
-                {"retrievedReferences": [reference]},
-                {"retrievedReferences": [reference]},
-            ],
-        }
-        service = KnowledgeBaseService(
-            client=client,
-            knowledge_base_id="KB12345678",
-            model_arn="arn:aws:bedrock:ap-southeast-1::foundation-model/test-model",
-            aws_region="ap-southeast-1",
-        )
-
-        result = service.ask("Do I need a visa?")
-
-        self.assertEqual(len(result.sources), 1)
+        with patch.object(
+            kb_service,
+            "get_bedrock_agent_runtime_client",
+            return_value=client,
+        ):
+            with self.assertRaises(ClientError):
+                kb_service.retrieve_and_generate("What documents do I need?")
 
 
 class AskEndpointTests(unittest.TestCase):
-    def test_question_request_rejects_blank_question(self):
-        with self.assertRaises(ValidationError):
-            main.QuestionRequest(question="   ")
-
-    def test_endpoint_returns_question_and_grounded_answer(self):
+    def test_endpoint_returns_question_and_retrieved_answer(self):
         with patch.object(
             main,
-            "ask_knowledge_base",
-            return_value=KnowledgeBaseAnswer(
-                text="A valid passport and visa are required.",
-                sources=(
-                    KnowledgeSource(
-                        name="visa-japan.pdf",
-                        uri="s3://kelana-travel-docs/visa-japan.pdf",
-                    ),
-                ),
-            ),
+            "retrieve_and_generate",
+            return_value="A valid passport and visa are required.",
         ) as service:
-            response = main.ask_endpoint(
-                main.QuestionRequest(question="  What documents are required?  ")
+            response = main.ask(
+                main.AskRequest(question="What documents are required?")
             )
 
-        self.assertEqual(response.question, "What documents are required?")
-        self.assertEqual(response.answer, "A valid passport and visa are required.")
-        self.assertEqual(response.sources[0].name, "visa-japan.pdf")
+        self.assertEqual(
+            response,
+            {
+                "question": "What documents are required?",
+                "answer": "A valid passport and visa are required.",
+            },
+        )
         service.assert_called_once_with("What documents are required?")
 
-    def test_ask_route_is_documented_as_bearer_protected(self):
+    def test_endpoint_maps_value_error_to_bad_request(self):
+        with patch.object(
+            main,
+            "retrieve_and_generate",
+            side_effect=ValueError("KNOWLEDGE_BASE_ID is not set"),
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                main.ask(main.AskRequest(question="Visa requirements?"))
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(
+            raised.exception.detail,
+            "KNOWLEDGE_BASE_ID is not set",
+        )
+
+    def test_ask_route_matches_instructor_contract(self):
         operation = main.app.openapi()["paths"]["/api/v1/ask"]["post"]
 
-        self.assertTrue(operation.get("security"))
-
-    def test_endpoint_maps_query_failure_to_bad_gateway(self):
-        with patch.object(
-            main,
-            "ask_knowledge_base",
-            side_effect=KnowledgeBaseQueryError("failed"),
-        ):
-            with self.assertRaises(HTTPException) as raised:
-                main.ask_endpoint(main.QuestionRequest(question="Visa requirements?"))
-
-        self.assertEqual(raised.exception.status_code, 502)
-        self.assertEqual(raised.exception.detail, "Knowledge Base request failed")
-
-    def test_endpoint_maps_missing_configuration_to_service_unavailable(self):
-        with patch.object(
-            main,
-            "ask_knowledge_base",
-            side_effect=KnowledgeBaseConfigurationError("missing"),
-        ):
-            with self.assertRaises(HTTPException) as raised:
-                main.ask_endpoint(main.QuestionRequest(question="Visa requirements?"))
-
-        self.assertEqual(raised.exception.status_code, 503)
-        self.assertEqual(raised.exception.detail, "Knowledge Base is not configured")
+        self.assertFalse(operation.get("security"))
+        request_schema = operation["requestBody"]["content"][
+            "application/json"
+        ]["schema"]
+        self.assertEqual(request_schema["$ref"], "#/components/schemas/AskRequest")
 
 
 if __name__ == "__main__":
