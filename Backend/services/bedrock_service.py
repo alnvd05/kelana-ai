@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Sequence
 
 import boto3
 from dotenv import load_dotenv
@@ -156,6 +156,68 @@ Rules:
                     "budget": budget,
                     "travel_style": travel_style,
                 },
+            }
+
+    def get_conversation_response(
+        self,
+        messages: Sequence[dict[str, str]],
+    ) -> Dict[str, Any]:
+        """Generate a response using the complete persisted chat history."""
+        if not messages:
+            return {
+                "success": False,
+                "error": "Conversation history is empty",
+                "response": None,
+            }
+
+        bedrock_messages = [
+            {
+                "role": message["role"],
+                "content": [{"text": message["content"]}],
+            }
+            for message in messages
+        ]
+
+        try:
+            response = self.bedrock_runtime.converse(
+                modelId=self.model_id,
+                system=[
+                    {
+                        "text": (
+                            "You are KelanaAI, a practical and friendly travel assistant. "
+                            "Use the conversation history to understand follow-up questions. "
+                            "Be specific, concise, and transparent when information is uncertain."
+                        )
+                    }
+                ],
+                messages=bedrock_messages,
+                inferenceConfig={
+                    "maxTokens": 2048,
+                    "temperature": 0.6,
+                    "topP": 0.9,
+                },
+            )
+            content_blocks = response["output"]["message"].get("content", [])
+            response_text = "\n".join(
+                block["text"].strip()
+                for block in content_blocks
+                if block.get("text", "").strip()
+            )
+            if not response_text:
+                raise ValueError("Amazon Bedrock returned an empty response")
+
+            return {
+                "success": True,
+                "response": response_text,
+                "model_id": self.model_id,
+                "usage": response.get("usage", {}),
+                "stop_reason": response.get("stopReason"),
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "error": str(exc),
+                "response": None,
             }
 
 

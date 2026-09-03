@@ -12,8 +12,10 @@ const HEADER_COPY = {
     plannerShort: "Plan",
     trips: "My Trips",
     tripsShort: "Trips",
-    assistant: "Assistant",
-    assistantShort: "Ask",
+    chat: "Chat",
+    chatShort: "Chat",
+    assistant: "Knowledge",
+    assistantShort: "Docs",
     profile: "Profile",
     welcome: "Welcome back,",
     logout: "Log out",
@@ -26,8 +28,10 @@ const HEADER_COPY = {
     plannerShort: "Rencana",
     trips: "Trip Saya",
     tripsShort: "Trip",
-    assistant: "Assistant",
-    assistantShort: "Tanya",
+    chat: "Chat",
+    chatShort: "Chat",
+    assistant: "Referensi",
+    assistantShort: "RAG",
     profile: "Profil",
     welcome: "Selamat datang,",
     logout: "Keluar",
@@ -106,9 +110,21 @@ export function AppHeader() {
             <span className="sm:hidden">{copy.tripsShort}</span>
           </Link>
           <Link
+            href="/chat"
+            aria-current={pathname === "/chat" ? "page" : undefined}
+            className={`rounded-full px-2 py-2 text-xs font-bold transition sm:px-4 ${
+              pathname === "/chat"
+                ? "bg-[#f3c769] text-[#081a1c]"
+                : "text-white/60 hover:text-white"
+            }`}
+          >
+            <span className="hidden sm:inline">{copy.chat}</span>
+            <span className="sm:hidden">{copy.chatShort}</span>
+          </Link>
+          <Link
             href="/assistant"
             aria-current={pathname === "/assistant" ? "page" : undefined}
-            className={`rounded-full px-3 py-2 text-xs font-bold transition sm:px-4 ${
+            className={`rounded-full px-2 py-2 text-xs font-bold transition sm:px-4 ${
               pathname === "/assistant"
                 ? "bg-[#f3c769] text-[#081a1c]"
                 : "text-white/60 hover:text-white"

@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timezone
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -14,6 +15,11 @@ from services.trip_service import (
     get_trip_category,
 )
 from services.bedrock_service import get_bedrock_service
+from services.conversation_service import (
+    DEFAULT_CONVERSATION_TITLE,
+    build_bedrock_messages,
+    derive_conversation_title,
+)
 from services.kb_service import retrieve_and_generate
 from services.auth_service import (
     EmailAlreadyRegisteredError,
@@ -26,6 +32,7 @@ from dependencies.auth import get_current_user
 
 from models.trip import Trip
 from models.user import User
+from models.conversation import Conversation, Message
 from database import SessionLocal, init_db
 
 app = FastAPI()
@@ -140,6 +147,82 @@ class AskRequest(BaseModel):
     question: str
 
 
+class ConversationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, max_length=256)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Conversation title must not be blank")
+        return normalized
+
+
+class ConversationRenameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=256)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Conversation title must not be blank")
+        return normalized
+
+
+class SendMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(min_length=1, max_length=8_000)
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Message must not be blank")
+        return normalized
+
+
+class ConversationCreatedResponse(BaseModel):
+    conversation_id: int
+    title: str
+    created_at: datetime
+
+
+class ConversationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class MessageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    conversation_id: int
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+
+class MessageExchangeResponse(BaseModel):
+    conversation_id: int
+    conversation_title: str
+    user_message: MessageResponse
+    assistant_message: MessageResponse
+
+
 @app.get("/")
 def home():
     return {"message": "Welcome to KelanaAI"}
@@ -227,6 +310,211 @@ def get_current_profile(current_user: User = Depends(get_current_user)):
             email=current_user.email,
             total_trips=total_trips,
         )
+    finally:
+        db.close()
+
+
+def _get_owned_active_conversation(
+    db,
+    conversation_id: int,
+    current_user: User,
+) -> Conversation:
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == current_user.id,
+            Conversation.is_deleted.is_(False),
+        )
+        .first()
+    )
+    if conversation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation with id {conversation_id} not found",
+        )
+    return conversation
+
+
+@app.post(
+    "/api/v1/conversations",
+    response_model=ConversationCreatedResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_conversation(
+    request: ConversationCreateRequest | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        title = request.title if request and request.title else DEFAULT_CONVERSATION_TITLE
+        conversation = Conversation(
+            user_id=current_user.id,
+            title=title,
+            created_by=current_user.id,
+            updated_by=current_user.id,
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+        return ConversationCreatedResponse(
+            conversation_id=conversation.id,
+            title=conversation.title,
+            created_at=conversation.created_at,
+        )
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.get(
+    "/api/v1/conversations",
+    response_model=list[ConversationResponse],
+)
+def list_conversations(current_user: User = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        return (
+            db.query(Conversation)
+            .filter(
+                Conversation.user_id == current_user.id,
+                Conversation.is_deleted.is_(False),
+            )
+            .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
+            .all()
+        )
+    finally:
+        db.close()
+
+
+@app.get(
+    "/api/v1/conversations/{conversation_id}/messages",
+    response_model=list[MessageResponse],
+)
+def list_conversation_messages(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        _get_owned_active_conversation(db, conversation_id, current_user)
+        return (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc(), Message.id.asc())
+            .all()
+        )
+    finally:
+        db.close()
+
+
+@app.patch(
+    "/api/v1/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+)
+def rename_conversation(
+    conversation_id: int,
+    request: ConversationRenameRequest,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        conversation = _get_owned_active_conversation(
+            db,
+            conversation_id,
+            current_user,
+        )
+        conversation.title = request.title
+        conversation.updated_at = datetime.now(timezone.utc)
+        conversation.updated_by = current_user.id
+        db.commit()
+        db.refresh(conversation)
+        return conversation
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.post(
+    "/api/v1/conversations/{conversation_id}/messages",
+    response_model=MessageExchangeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def send_conversation_message(
+    conversation_id: int,
+    request: SendMessageRequest,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        conversation = _get_owned_active_conversation(
+            db,
+            conversation_id,
+            current_user,
+        )
+        has_messages = (
+            db.query(Message.id)
+            .filter(Message.conversation_id == conversation_id)
+            .first()
+            is not None
+        )
+
+        user_message = Message(
+            conversation_id=conversation.id,
+            role="user",
+            content=request.content,
+        )
+        db.add(user_message)
+
+        if not has_messages and conversation.title == DEFAULT_CONVERSATION_TITLE:
+            conversation.title = derive_conversation_title(request.content)
+
+        conversation.updated_at = datetime.now(timezone.utc)
+        conversation.updated_by = current_user.id
+        db.commit()
+        db.refresh(user_message)
+        db.refresh(conversation)
+
+        history = (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc(), Message.id.asc())
+            .all()
+        )
+        result = get_bedrock_service().get_conversation_response(
+            build_bedrock_messages(history)
+        )
+        if not result["success"]:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="KelanaAI could not generate a response. Your message was saved.",
+            )
+
+        assistant_message = Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=result["response"],
+        )
+        db.add(assistant_message)
+        conversation.updated_at = datetime.now(timezone.utc)
+        conversation.updated_by = current_user.id
+        db.commit()
+        db.refresh(assistant_message)
+        db.refresh(conversation)
+
+        return MessageExchangeResponse(
+            conversation_id=conversation.id,
+            conversation_title=conversation.title,
+            user_message=MessageResponse.model_validate(user_message),
+            assistant_message=MessageResponse.model_validate(assistant_message),
+        )
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
