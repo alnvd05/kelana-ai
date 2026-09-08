@@ -37,29 +37,35 @@ https://kelana-ai-api-b5b1b0cc.fastapicloud.dev.
 
 ## Part 5 - Frontend
 
-Target Vercel dengan root Frontend. NEXT_PUBLIC_API_URL harus berakhiran
-/api/v1; NEXT_PUBLIC_SITE_URL mengikuti domain frontend final. Build Webpack
-dan lint telah lulus. Turbopack terblokir pembukaan port pada sandbox lokal.
+Frontend production live di https://kelana-ai-ten.vercel.app dengan root
+Frontend. NEXT_PUBLIC_API_URL berakhiran /api/v1 dan NEXT_PUBLIC_SITE_URL
+mengikuti domain frontend final. Build Webpack dan lint lokal telah lulus;
+build Turbopack juga lulus di Vercel. Turbopack lokal hanya terblokir pembukaan
+port oleh sandbox.
 
 ## Part 6 - End-to-end testing / hands-on lab
 
-57 unit test backend lulus. Selain itu, smoke test API publik berhasil memakai
-Neon dan Bedrock nyata. Tes ini belum menggantikan pengujian browser frontend.
+57 unit test backend lulus. Smoke test API publik berhasil memakai Neon dan
+Bedrock nyata. Alur browser produksi juga diuji pada 8 September 2026.
 
 Jalankan alur publik berikut setelah deploy, dengan akun uji khusus:
 
 | Langkah | Hasil yang harus diamati | Status |
 | --- | --- | --- |
 | /health dan /docs | HTTPS, status 200 | Lulus API publik |
-| Register dan login | JWT valid, profil tampil | Lulus API publik, browser belum |
-| Generate itinerary | Respons Bedrock, detail trip tampil | Lulus API publik, browser belum |
-| Dashboard + reload | Trip tetap tersedia dari Neon | Lulus pembacaan ulang API |
-| Chat 2 giliran + reload | Pesan dan konteks tetap tersedia | 4 pesan tersimpan, pembacaan ulang lulus |
+| Register dan login | JWT valid, profil tampil | Lulus API dan browser produksi |
+| Generate itinerary | Respons Bedrock, detail trip tampil | Lulus; trip Yogyakarta tampil dan tersimpan |
+| Dashboard + reload | Trip tetap tersedia dari Neon | Lulus API dan pembacaan browser |
+| Chat + reload | Pesan dan konteks tetap tersedia | Lulus API; percakapan baru juga berhasil dari browser |
 | Akun kedua | Data akun pertama tidak terlihat | Lulus API publik; akses langsung percakapan akun pertama ditolak 404 |
-| Logout | Halaman terlindungi kembali meminta login | Belum diuji publik |
-| Jurnal/foto | Catatan tersimpan, foto dapat dibuka pemilik | Catatan lulus API; bucket foto belum diisi |
-| Browser console | Tidak ada CORS/JS error | Belum diuji publik |
+| Logout | Halaman terlindungi kembali meminta login | Lulus browser produksi |
+| Jurnal/foto | Catatan tersimpan, foto dapat dibuka pemilik | Catatan lulus API dan browser; bucket foto belum diisi |
+| Browser frontend | Tidak ada CORS/JS error yang menghalangi alur | Alur signup, trip, chat, dan jurnal lulus |
 | Ponsel | Alur utama dapat digunakan | Belum diuji |
+
+Halaman /about dan URL tak dikenal untuk 404 juga lulus. Tautan API Docs di
+footer diperbaiki agar mengikuti NEXT_PUBLIC_API_URL dan sudah diverifikasi
+mengarah ke Swagger FastAPI Cloud pada deployment production.
 
 ## Part 7 - Troubleshooting
 
@@ -84,7 +90,7 @@ pengguna yang sudah ada tidak boleh hilang.
 Belum dilakukan oleh peserta nyata. Isi URL setelah aplikasi live, lalu
 pengguna dapat mengirim teks berikut kepada teman yang dipilih:
 
-> Boleh bantu mencoba KelanaAI? Buka [URL aplikasi], daftar akun uji, login,
+> Boleh bantu mencoba KelanaAI? Buka https://kelana-ai-ten.vercel.app, daftar akun uji, login,
 > buat itinerary, tanyakan dua hal melalui chat, lalu reload dan lanjutkan
 > percakapan yang sama. Coba juga dari ponsel. Catat langkah yang gagal,
 > hasil yang diharapkan, dan hasil yang muncul. Jangan kirim password.
@@ -106,18 +112,17 @@ di app/icon.svg, dan metadata OG menggunakan public/og.png yang sudah ada.
 - About: /about ditambahkan dan dihubungkan dari footer planner.
 - README deployment: langkah FastAPI Cloud, Neon, Vercel, environment, migrasi,
   checklist, dan troubleshooting tersedia.
-- Commit/push: belum dilakukan.
+- Commit/push: commit b351a38 sudah dipush ke main; tag session-11 sudah dipush.
 
 ## Pekerjaan yang masih menunggu
 
-- Login Vercel, deploy frontend, pasang FRONTEND_URL, dan uji CORS/browser.
 - Konfigurasi bucket S3 sebelum mengklaim fitur foto jurnal selesai.
 - Beta test teman dan pengujian perangkat ponsel nyata.
-- Review perubahan lokal, commit/push, dan checkpoint sesi setelah rilis diverifikasi.
+- Sambungkan integrasi GitHub Vercel agar push berikutnya otomatis deploy;
+  deployment produksi saat ini dilakukan melalui Vercel CLI.
 
-Pengujian cloud membuat dua akun uji berlabel Kelana Release Test dan Kelana
-Isolation Test; akun pertama memiliki satu trip, satu percakapan, dan satu
-catatan jurnal. Data uji masih tersimpan di database baru.
+Pengujian cloud membuat akun uji API dan browser. Data uji berisi trip,
+percakapan, dan catatan jurnal dan masih tersimpan di database production baru.
 
 ## Mini quiz
 

@@ -53,6 +53,12 @@ Backend proyek ini menggunakan **FastAPI Cloud**, frontend Vercel, dan database
 Neon. Kode memakai MODEL_ID, bukan BEDROCK_MODEL_ID.
 Token Bedrock tidak menggantikan kredensial S3/Knowledge Base.
 
+Deployment production saat ini:
+
+- Frontend: https://kelana-ai-ten.vercel.app
+- Backend: https://kelana-ai-api-b5b1b0cc.fastapicloud.dev
+- Swagger: https://kelana-ai-api-b5b1b0cc.fastapicloud.dev/docs
+
 ## Database Neon
 
 1. Buat project/database Neon dan ambil connection string dari dialog Connect.

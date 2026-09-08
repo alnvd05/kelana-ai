@@ -22,6 +22,9 @@ const bodyFont =
   "ui-sans-serif, -apple-system, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif";
 
 const TRAVEL_STYLES = ["Family", "Solo", "Couple", "Backpacker"] as const;
+const API_DOCS_URL = `${(
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"
+).replace(/\/api\/v1\/?$/, "")}/docs`;
 
 const PLANNER_COPY = {
   en: {
@@ -711,7 +714,7 @@ function PlannerPage() {
           <Link href="/about">{locale === "id" ? "Tentang" : "About"}</Link>
           <a className="transition hover:text-[#f3c769]" href="#planner">Planner Alvin Djunaedi</a>
           <span aria-hidden="true">&middot;</span>
-          <a className="transition hover:text-[#f3c769]" href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API Docs</a>
+          <a className="transition hover:text-[#f3c769]" href={API_DOCS_URL} target="_blank" rel="noreferrer">API Docs</a>
           <span aria-hidden="true">&middot;</span>
           <a className="transition hover:text-[#f3c769]" href="mailto:alvindjunaidi05@gmail.com">alvindjunaidi05@gmail.com</a>
         </nav>
