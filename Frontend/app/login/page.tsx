@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -19,6 +20,12 @@ const COPY = {
     storyKicker: "Your personal travel companion",
     storyTitle: "Every great journey starts with a plan.",
     storyBody: "Build thoughtful itineraries, keep every journey together, and let AI help with the details.",
+    signupBenefitsLabel: "Kelana AI helps you:",
+    signupBenefits: [
+      "Plans shaped around you",
+      "Every journey in one place",
+      "Pick up whenever you're ready",
+    ],
     from: "From",
     journeyStarts: "Where your journey begins",
     nextStop: "Next stop",
@@ -28,7 +35,7 @@ const COPY = {
     signUp: "Sign up",
     languageLabel: "Choose language",
     authModeLabel: "Choose authentication mode",
-    signInKicker: "Secure traveler access",
+    signInKicker: "Ready for your next story?",
     signUpKicker: "New traveler registration",
     signInTitle: "Welcome back.",
     signUpTitle: "Start exploring.",
@@ -57,7 +64,7 @@ const COPY = {
     signInNoteBody: "Sign in and continue planning where you left off.",
     signUpNoteTitle: "A new journey begins here.",
     signUpNoteBody: "Sign up once, then keep every itinerary together in your personal travel space.",
-    footer: "AI-planned journeys · Human-approved memories",
+    footer: "Go farther. Come home with stories.",
     nameRequired: "Please enter your name.",
     passwordLength: "Password must contain at least 8 characters.",
     passwordMismatch: "The passwords do not match. Please try again.",
@@ -70,6 +77,12 @@ const COPY = {
     storyKicker: "Teman perjalanan pribadi Anda",
     storyTitle: "Setiap perjalanan hebat dimulai dengan rencana.",
     storyBody: "Susun itinerary yang matang, simpan semua perjalanan, dan biarkan AI membantu detailnya.",
+    signupBenefitsLabel: "Kelana AI membantu Anda:",
+    signupBenefits: [
+      "Rencana yang mengikuti gaya Anda",
+      "Semua perjalanan di satu tempat",
+      "Lanjutkan kapan pun Anda siap",
+    ],
     from: "Dari",
     journeyStarts: "Tempat perjalanan Anda dimulai",
     nextStop: "Tujuan berikutnya",
@@ -79,7 +92,7 @@ const COPY = {
     signUp: "Daftar",
     languageLabel: "Pilih bahasa",
     authModeLabel: "Pilih masuk atau daftar",
-    signInKicker: "Akses traveler aman",
+    signInKicker: "Siap menambah cerita baru?",
     signUpKicker: "Pendaftaran traveler baru",
     signInTitle: "Selamat datang kembali.",
     signUpTitle: "Mulai menjelajah.",
@@ -108,7 +121,7 @@ const COPY = {
     signInNoteBody: "Masuk dan lanjutkan rencana terakhir Anda.",
     signUpNoteTitle: "Perjalanan baru dimulai di sini.",
     signUpNoteBody: "Daftar sekali, lalu simpan setiap itinerary dalam ruang perjalanan pribadi Anda.",
-    footer: "Perjalanan dirancang AI · Kenangan disetujui manusia",
+    footer: "Jelajah lebih jauh. Pulang membawa cerita.",
     nameRequired: "Silakan masukkan nama Anda.",
     passwordLength: "Kata sandi harus berisi minimal 8 karakter.",
     passwordMismatch: "Kata sandi tidak sama. Silakan periksa kembali.",
@@ -133,7 +146,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isReady && isAuthenticated) router.replace("/trips");
+    if (isReady && isAuthenticated) router.replace("/");
   }, [isAuthenticated, isReady, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -165,7 +178,7 @@ export default function LoginPage() {
         });
       }
       await login(email, password);
-      router.replace(mode === "signup" ? "/" : "/trips");
+      router.replace("/");
     } catch (reason) {
       if (reason instanceof ApiError) {
         setError(
@@ -202,7 +215,7 @@ export default function LoginPage() {
       <div className={styles.backdrop} aria-hidden="true" />
 
       <section className={styles.shell} aria-label={copy.authSection}>
-        <aside className={styles.storyPanel}>
+        <aside className={`${styles.storyPanel} ${mode === "signup" ? styles.storyPanelSignup : ""}`}>
           <div className={styles.brand}>
             <span className={styles.compassMark} aria-hidden="true">✦</span>
             <span>Kelana<span>AI</span></span>
@@ -213,6 +226,20 @@ export default function LoginPage() {
             <h1>{copy.storyTitle}</h1>
             <p>{copy.storyBody}</p>
           </div>
+
+          {mode === "signup" && (
+            <div className={styles.signupBenefits}>
+              <p>{copy.signupBenefitsLabel}</p>
+              <ul>
+                {copy.signupBenefits.map((benefit, index) => (
+                  <li key={benefit}>
+                    <span aria-hidden="true">0{index + 1}</span>
+                    {benefit}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className={styles.routeCard} aria-label="HOM to Bali">
             <div>
@@ -258,7 +285,9 @@ export default function LoginPage() {
               {mode === "signin" ? copy.signInKicker : copy.signUpKicker}
             </p>
             <h2>{mode === "signin" ? copy.signInTitle : copy.signUpTitle}</h2>
-            <p className={styles.intro}>{mode === "signin" ? copy.signInIntro : copy.signUpIntro}</p>
+            <p className={styles.intro}>
+              {mode === "signin" ? copy.signInIntro : copy.signUpIntro}
+            </p>
 
             <form onSubmit={handleSubmit} className={styles.form}>
               {mode === "signup" && (
@@ -331,6 +360,9 @@ export default function LoginPage() {
             </div>
 
             <p className={styles.footerText}>{copy.footer}</p>
+            <Link href="/about" className={styles.footerText}>
+              {locale === "id" ? "Tentang KelanaAI" : "About KelanaAI"}
+            </Link>
           </div>
         </div>
       </section>

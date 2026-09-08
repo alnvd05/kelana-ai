@@ -13,7 +13,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   margin: 0;
 }
 
@@ -23,6 +23,67 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+.chat-message-content {
+  color: rgba(246, 238, 221, 0.88);
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
+
+.chat-message-content > * + * {
+  margin-top: 0.9rem;
+}
+
+.chat-message-content h3 {
+  color: #fff8e9;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+  margin-top: 1.35rem;
+}
+
+.chat-message-content h3:first-child {
+  margin-top: 0;
+}
+
+.chat-message-content ul,
+.chat-message-content ol {
+  display: grid;
+  gap: 0.65rem;
+  margin-left: 0;
+  padding-left: 1.25rem;
+}
+
+.chat-message-content ul {
+  list-style: disc;
+}
+
+.chat-message-content ol {
+  list-style: decimal;
+}
+
+.chat-message-content li {
+  padding-left: 0.25rem;
+}
+
+.chat-message-content li::marker {
+  color: #79d8bd;
+}
+
+.chat-message-content strong {
+  color: #fff8e9;
+  font-weight: 750;
+}
+
+.chat-message-content code {
+  border: 1px solid rgba(243, 199, 105, 0.18);
+  border-radius: 0.35rem;
+  background: rgba(7, 25, 27, 0.72);
+  color: #f3c769;
+  font-size: 0.88em;
+  padding: 0.12rem 0.32rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

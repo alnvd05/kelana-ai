@@ -17,7 +17,7 @@ const PAGE_SIZE = 12;
 const TRIPS_COPY = {
   en: {
     title: "Trip History",
-    intro: "Revisit every itinerary saved in PostgreSQL without generating another AI response.",
+    intro: "Your saved journeys, ready whenever inspiration strikes again.",
     generate: "+ Generate a Trip",
     search: "Search trips",
     searchPlaceholder: "Search destination or travel style...",
@@ -42,7 +42,7 @@ const TRIPS_COPY = {
   },
   id: {
     title: "Riwayat Trip",
-    intro: "Buka kembali setiap itinerary yang tersimpan tanpa membuat respons AI baru.",
+    intro: "Semua rencana perjalanan favorit Anda, siap dibuka kapan saja.",
     generate: "+ Buat Trip",
     search: "Cari trip",
     searchPlaceholder: "Cari destinasi atau gaya perjalanan...",

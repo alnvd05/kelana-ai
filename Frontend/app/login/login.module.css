@@ -126,11 +126,14 @@
 }
 
 .storyCopy > p:last-child {
-  max-width: 450px;
-  margin: 24px 0 0;
-  color: rgba(246, 238, 221, 0.7);
-  font-size: 15px;
-  line-height: 1.75;
+  max-width: 430px;
+  margin: 26px 0 0;
+  color: rgba(246, 238, 221, 0.78);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(17px, 1.35vw, 19px);
+  font-style: italic;
+  letter-spacing: 0.005em;
+  line-height: 1.65;
 }
 
 .routeCard {
@@ -301,10 +304,14 @@
 }
 
 .intro {
+  max-width: 390px;
   margin: 16px 0 0;
-  color: #64716d;
-  font-size: 14px;
-  line-height: 1.7;
+  color: #4f5f5a;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  font-style: italic;
+  letter-spacing: 0.005em;
+  line-height: 1.6;
 }
 
 .form {
@@ -629,6 +636,70 @@
   margin-top: 24px;
 }
 
+@media (min-width: 901px) {
+  .storyPanelSignup {
+    justify-content: flex-start;
+  }
+
+  .storyPanelSignup .storyCopy {
+    margin-top: clamp(64px, 7vh, 88px);
+    padding-top: 0;
+  }
+
+  .storyPanelSignup .routeCard {
+    margin-top: 0;
+  }
+}
+
+.signupBenefits {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  min-height: 170px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 26px 0;
+}
+
+.signupBenefits > p {
+  margin: 0 0 14px;
+  color: rgba(243, 199, 105, 0.72);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.signupBenefits ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.signupBenefits li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  border-top: 1px solid rgba(246, 238, 221, 0.2);
+  padding-top: 10px;
+  color: rgba(246, 238, 221, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.signupBenefits li span {
+  color: var(--brass-light);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
 @keyframes arrive {
   from {
     opacity: 0;
@@ -670,7 +741,8 @@
   }
 
   .routeCard,
-  .photoCredit {
+  .photoCredit,
+  .signupBenefits {
     display: none;
   }
 

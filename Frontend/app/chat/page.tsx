@@ -11,9 +11,11 @@ import {
 } from "react";
 
 import { useLanguage } from "@/components/LanguageProvider";
+import { ChatMessageContent } from "@/components/ChatMessageContent";
 import { ApiError } from "@/lib/apiClient";
 import {
   createConversation,
+  deleteConversation,
   listConversationMessages,
   listConversations,
   renameConversation,
@@ -54,6 +56,9 @@ const CHAT_COPY = {
     loadError: "We could not load your conversations.",
     sendError: "KelanaAI could not answer. Your message remains saved.",
     renameError: "The conversation could not be renamed.",
+    delete: "Remove conversation",
+    deleteConfirm: (title: string) => `Remove “${title}” from your conversations?`,
+    deleteError: "The conversation could not be removed.",
   },
   id: {
     eyebrow: "Memori percakapan",
@@ -84,6 +89,9 @@ const CHAT_COPY = {
     loadError: "Percakapan Anda tidak dapat dimuat.",
     sendError: "KelanaAI belum dapat menjawab. Pesan Anda tetap tersimpan.",
     renameError: "Nama percakapan tidak dapat diubah.",
+    delete: "Hapus percakapan",
+    deleteConfirm: (title: string) => `Hapus “${title}” dari daftar percakapan Anda?`,
+    deleteError: "Percakapan tidak dapat dihapus.",
   },
 } as const;
 
@@ -105,6 +113,7 @@ export default function ChatPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [deletingConversationId, setDeletingConversationId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const loadVersion = useRef(0);
   const messageEndRef = useRef<HTMLDivElement>(null);
@@ -297,6 +306,31 @@ export default function ChatPage() {
     }
   }
 
+  async function handleDeleteConversation(conversation: Conversation) {
+    if (isSending || deletingConversationId !== null) return;
+    if (!window.confirm(copy.deleteConfirm(conversation.title))) return;
+
+    setDeletingConversationId(conversation.id);
+    setError(null);
+    try {
+      await deleteConversation(conversation.id);
+      const remaining = conversations.filter((item) => item.id !== conversation.id);
+      setConversations(remaining);
+
+      if (activeConversationId === conversation.id) {
+        loadVersion.current += 1;
+        setActiveConversationId(null);
+        setMessages([]);
+        setIsRenaming(false);
+        if (remaining[0]) void openConversation(remaining[0].id);
+      }
+    } catch (reason) {
+      setError(messageError(reason, copy.deleteError));
+    } finally {
+      setDeletingConversationId(null);
+    }
+  }
+
   return (
     <main className="min-h-[calc(100dvh-72px)] bg-[#07191b] px-4 py-5 text-[#f6eedd] sm:px-6 lg:h-[calc(100dvh-72px)] lg:px-8 lg:py-7">
       <div className="mx-auto grid w-full max-w-[1440px] overflow-hidden rounded-[2rem] border border-white/10 bg-[#0b2325] shadow-[0_32px_100px_-45px_rgba(0,0,0,0.9)] lg:h-full lg:min-h-0 lg:grid-cols-[310px_minmax(0,1fr)]">
@@ -346,26 +380,47 @@ export default function ChatPage() {
               <ul className="space-y-1">
                 {conversations.map((conversation) => {
                   const isActive = conversation.id === activeConversationId;
+                  const isDeleting = conversation.id === deletingConversationId;
                   return (
                     <li key={conversation.id}>
-                      <button
-                        type="button"
-                        onClick={() => void openConversation(conversation.id)}
-                        disabled={isSending}
-                        aria-current={isActive ? "page" : undefined}
-                        className={`group w-full rounded-2xl border px-4 py-3 text-left transition disabled:cursor-not-allowed ${
+                      <div
+                        className={`group flex items-center rounded-2xl border pr-2 transition ${
                           isActive
                             ? "border-[#f3c769]/35 bg-[#f3c769]/10"
                             : "border-transparent hover:border-white/10 hover:bg-white/[0.035]"
                         }`}
                       >
-                        <span className={`block truncate text-sm font-bold ${isActive ? "text-[#f3c769]" : "text-[#f6eedd]/75"}`}>
-                          {conversation.title}
-                        </span>
-                        <span className="mt-1 block text-[10px] text-white/35">
-                          {dateFormatter.format(new Date(conversation.updated_at))}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => void openConversation(conversation.id)}
+                          disabled={isSending || isDeleting}
+                          aria-current={isActive ? "page" : undefined}
+                          className="min-w-0 flex-1 px-4 py-3 text-left disabled:cursor-not-allowed"
+                        >
+                          <span className={`block truncate text-sm font-bold ${isActive ? "text-[#f3c769]" : "text-[#f6eedd]/75"}`}>
+                            {conversation.title}
+                          </span>
+                          <span className="mt-1 block text-[10px] text-white/35">
+                            {dateFormatter.format(new Date(conversation.updated_at))}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteConversation(conversation)}
+                          disabled={isSending || deletingConversationId !== null}
+                          className="grid size-8 shrink-0 place-items-center rounded-full text-white/35 opacity-60 transition hover:bg-[#a23825]/20 hover:text-[#f3b09f] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-[#f3c769] disabled:cursor-not-allowed disabled:opacity-25 sm:opacity-0 sm:group-hover:opacity-100"
+                          aria-label={`${copy.delete}: ${conversation.title}`}
+                          title={copy.delete}
+                        >
+                          {isDeleting ? (
+                            <span className="size-3.5 animate-spin rounded-full border-2 border-white/20 border-t-[#f3b09f]" />
+                          ) : (
+                            <svg viewBox="0 0 20 20" fill="none" className="size-4" aria-hidden="true">
+                              <path d="M4.75 6.25h10.5M8 3.75h4M6.5 6.25l.55 9h5.9l.55-9M8.5 9v3.75M11.5 9v3.75" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
@@ -461,12 +516,12 @@ export default function ChatPage() {
                             {timeFormatter.format(new Date(message.created_at))}
                           </time>
                         </div>
-                        <div className={`whitespace-pre-wrap rounded-[1.4rem] px-5 py-4 text-sm leading-7 shadow-sm sm:text-[15px] ${
+                        <div className={`rounded-[1.4rem] px-5 py-4 text-sm shadow-sm sm:text-[15px] ${
                           isUser
                             ? "rounded-br-md bg-[#f3c769] text-[#081a1c]"
                             : "rounded-bl-md border border-white/10 bg-[#102f31] text-[#f6eedd]/85"
                         }`}>
-                          {message.content}
+                          {isUser ? message.content : <ChatMessageContent content={message.content} />}
                         </div>
                       </article>
                     </li>

@@ -50,3 +50,12 @@ export function renameConversation(
     body: JSON.stringify({ title }),
   });
 }
+
+export function deleteConversation(
+  conversationId: number,
+): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(
+    `/conversations/${conversationId}`,
+    { method: "DELETE" },
+  );
+}

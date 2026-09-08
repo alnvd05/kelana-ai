@@ -6,6 +6,7 @@ export type Trip = {
   category: string;
   daily_budget: number;
   travel_style: string | null;
+  departure_date: string | null;
   ai_recommendation: string | null;
 };
 
@@ -14,8 +15,8 @@ export type CreateTripInput = {
   days: number;
   budget: number;
   month: string;
+  departure_date: string;
   travel_style: string;
 };
 
 export type TripSortMode = "latest" | "oldest" | "highest-budget";
-

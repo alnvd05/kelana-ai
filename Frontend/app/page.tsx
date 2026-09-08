@@ -297,6 +297,7 @@ function PlannerPage() {
         budget: budget === "" ? 0 : budget,
         days,
         month: getMonthName(departureDate),
+        departure_date: departureDate,
         travel_style: style === "Other" ? customStyle.trim() || "Custom" : style,
       });
       setStatus("ready");
@@ -707,6 +708,7 @@ function PlannerPage() {
       <footer className="site-footer relative z-10 mt-8 flex w-full max-w-[1180px] flex-col items-center justify-between gap-4 border-t border-[#c79a44]/25 px-2 pt-6 text-center text-xs text-[#f6eedd]/60 sm:flex-row sm:text-left">
         <p>&copy; {new Date().getFullYear()} KelanaAI. {copy.footer}</p>
         <nav className="site-footer-links flex items-center gap-3" aria-label={copy.footerNavigation}>
+          <Link href="/about">{locale === "id" ? "Tentang" : "About"}</Link>
           <a className="transition hover:text-[#f3c769]" href="#planner">Planner Alvin Djunaedi</a>
           <span aria-hidden="true">&middot;</span>
           <a className="transition hover:text-[#f3c769]" href="http://localhost:8000/docs" target="_blank" rel="noreferrer">API Docs</a>
