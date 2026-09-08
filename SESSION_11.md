@@ -121,6 +121,14 @@ di app/icon.svg, dan metadata OG menggunakan public/og.png yang sudah ada.
 - Sambungkan integrasi GitHub Vercel agar push berikutnya otomatis deploy;
   deployment produksi saat ini dilakukan melalui Vercel CLI.
 
+## Cost guardrail
+
+Vercel memakai Hobby, Neon memakai Free, dan FastAPI Cloud memakai Hobby.
+Tidak ada upgrade, add-on, custom domain, atau bucket S3 yang dibuat. Bedrock
+tetap merupakan layanan AWS berbasis pemakaian dan dapat memakai kredit atau
+menimbulkan biaya; karena itu pengujian AI tambahan dihentikan dan pemakaian
+harus dipantau dari AWS Billing/Budgets.
+
 Pengujian cloud membuat akun uji API dan browser. Data uji berisi trip,
 percakapan, dan catatan jurnal dan masih tersimpan di database production baru.
 

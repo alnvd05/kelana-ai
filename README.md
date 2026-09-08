@@ -59,6 +59,18 @@ Deployment production saat ini:
 - Backend: https://kelana-ai-api-b5b1b0cc.fastapicloud.dev
 - Swagger: https://kelana-ai-api-b5b1b0cc.fastapicloud.dev/docs
 
+### Batas biaya
+
+Deployment menggunakan Vercel Hobby, Neon Free, dan FastAPI Cloud Hobby. Jangan
+upgrade plan, mengaktifkan add-on, atau menambahkan custom domain berbayar tanpa
+persetujuan eksplisit. Pada free tier, layanan dapat berhenti atau membatasi
+request ketika kuota habis.
+
+Amazon Bedrock berbeda: inference dapat memakai kredit AWS atau dikenai biaya
+berdasarkan pemakaian. Pantau AWS Billing/Budgets dan jangan menganggap token
+Bedrock sebagai layanan selalu gratis. Bucket S3 jurnal belum dibuat agar tidak
+menambah resource maupun biaya; fitur catatan teks tetap berjalan tanpa bucket.
+
 ## Database Neon
 
 1. Buat project/database Neon dan ambil connection string dari dialog Connect.
