@@ -297,6 +297,7 @@ class ProtectedTripEndpointTests(unittest.TestCase):
                     days=4,
                     budget=1500,
                     month="October",
+                    departure_date="2026-10-12",
                     travel_style="Couple",
                 ),
                 current_user=current_user,
@@ -305,6 +306,7 @@ class ProtectedTripEndpointTests(unittest.TestCase):
         self.assertEqual(trip.user_id, 2)
         self.assertEqual(trip.created_by, 2)
         self.assertEqual(trip.updated_by, 2)
+        self.assertEqual(trip.departure_date.isoformat(), "2026-10-12")
         db.add.assert_called_once_with(trip)
         db.commit.assert_called_once_with()
         db.refresh.assert_called_once_with(trip)

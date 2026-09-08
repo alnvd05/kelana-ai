@@ -13,3 +13,4 @@ class User(AuditMixin, Base):
     password_hash = Column(String(255),  nullable=False)
     trips = relationship("Trip", back_populates="user")
     conversations = relationship("Conversation", back_populates="user")
+    journal_entries = relationship("JournalEntry", back_populates="user")

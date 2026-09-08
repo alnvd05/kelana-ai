@@ -159,6 +159,40 @@ class ConversationEndpointTests(unittest.TestCase):
         self.assertEqual(renamed.title, "Japan Family Trip")
         self.assertEqual(renamed.updated_by, 1)
 
+    def test_delete_soft_deletes_only_owned_conversation(self):
+        with self.session_factory() as db:
+            db.add(
+                Conversation(
+                    id=10,
+                    user_id=1,
+                    title="Old travel ideas",
+                    created_by=1,
+                    updated_by=1,
+                )
+            )
+            db.commit()
+
+        with patch.object(main, "SessionLocal", self.session_factory):
+            with self.assertRaises(HTTPException) as raised:
+                main.delete_conversation(
+                    conversation_id=10,
+                    current_user=SimpleNamespace(id=2),
+                )
+            main.delete_conversation(
+                conversation_id=10,
+                current_user=SimpleNamespace(id=1),
+            )
+            remaining = main.list_conversations(
+                current_user=SimpleNamespace(id=1)
+            )
+
+        self.assertEqual(raised.exception.status_code, 404)
+        self.assertEqual(remaining, [])
+        with self.session_factory() as db:
+            stored = db.get(Conversation, 10)
+            self.assertTrue(stored.is_deleted)
+            self.assertEqual(stored.deleted_by, 1)
+
     def test_failed_ai_call_keeps_the_user_message(self):
         bedrock = MagicMock()
         bedrock.get_conversation_response.return_value = {
@@ -193,6 +227,7 @@ class ConversationEndpointTests(unittest.TestCase):
             paths["/api/v1/conversations"]["post"],
             paths["/api/v1/conversations"]["get"],
             paths["/api/v1/conversations/{conversation_id}"]["patch"],
+            paths["/api/v1/conversations/{conversation_id}"]["delete"],
             paths["/api/v1/conversations/{conversation_id}/messages"]["get"],
             paths["/api/v1/conversations/{conversation_id}/messages"]["post"],
         ]

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Integer, String, Float, Text, ForeignKey
+from sqlalchemy import Column, BigInteger, Date, Integer, String, Float, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 from models.audit import AuditMixin
@@ -15,5 +15,7 @@ class Trip(AuditMixin, Base):
     category     = Column(String, nullable=False)
     daily_budget = Column(Float, nullable=False)
     travel_style = Column(String, nullable=True)
+    departure_date = Column(Date, nullable=True)
     ai_recommendation = Column(Text, nullable=True)
     user              = relationship("User", back_populates="trips")
+    journal_entries   = relationship("JournalEntry", back_populates="trip")

@@ -1,9 +1,11 @@
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Literal
+from uuid import uuid4
 
+import boto3
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func
 
@@ -33,6 +35,7 @@ from dependencies.auth import get_current_user
 from models.trip import Trip
 from models.user import User
 from models.conversation import Conversation, Message
+from models.journal import JournalEntry
 from database import SessionLocal, init_db
 
 app = FastAPI()
@@ -59,6 +62,7 @@ class TripRequest(BaseModel):
     days: int
     budget: float
     month: str
+    departure_date: date | None = None
     travel_style: str
 
 
@@ -221,6 +225,92 @@ class MessageExchangeResponse(BaseModel):
     conversation_title: str
     user_message: MessageResponse
     assistant_message: MessageResponse
+
+
+class JournalEntryCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entry_type: Literal["moment", "note"]
+    title: str = Field(min_length=1, max_length=160)
+    content: str = Field(min_length=1, max_length=8_000)
+    location: str | None = Field(default=None, max_length=160)
+    occurred_on: date | None = None
+    trip_id: int | None = Field(default=None, gt=0)
+    photo_key: str | None = Field(default=None, max_length=512)
+
+    @field_validator("title", "content")
+    @classmethod
+    def normalize_required_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Value must not be blank")
+        return normalized
+
+    @field_validator("location", "photo_key")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
+class JournalEntryResponse(BaseModel):
+    id: int
+    entry_type: Literal["moment", "note"]
+    title: str
+    content: str
+    location: str | None
+    occurred_on: date | None
+    trip_id: int | None
+    trip_destination: str | None
+    photo_url: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class JournalPhotoUploadResponse(BaseModel):
+    photo_key: str
+    photo_url: str
+
+
+JOURNAL_PHOTO_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+MAX_JOURNAL_PHOTO_BYTES = 8 * 1024 * 1024
+
+
+def _journal_s3_client():
+    return boto3.client("s3", region_name=os.getenv("AWS_REGION"))
+
+
+def _journal_photo_url(photo_key: str | None) -> str | None:
+    bucket = os.getenv("JOURNAL_S3_BUCKET")
+    if not photo_key or not bucket:
+        return None
+    return _journal_s3_client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": photo_key},
+        ExpiresIn=3600,
+    )
+
+
+def _journal_entry_response(entry: JournalEntry) -> JournalEntryResponse:
+    return JournalEntryResponse(
+        id=entry.id,
+        entry_type=entry.entry_type,
+        title=entry.title,
+        content=entry.content,
+        location=entry.location,
+        occurred_on=entry.occurred_on,
+        trip_id=entry.trip_id,
+        trip_destination=entry.trip.destination if entry.trip else None,
+        photo_url=_journal_photo_url(entry.photo_key),
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+    )
 
 
 @app.get("/")
@@ -439,6 +529,33 @@ def rename_conversation(
         db.close()
 
 
+@app.delete("/api/v1/conversations/{conversation_id}")
+def delete_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        conversation = _get_owned_active_conversation(
+            db,
+            conversation_id,
+            current_user,
+        )
+        deleted_at = datetime.now(timezone.utc)
+        conversation.is_deleted = True
+        conversation.deleted_at = deleted_at
+        conversation.deleted_by = current_user.id
+        conversation.updated_at = deleted_at
+        conversation.updated_by = current_user.id
+        db.commit()
+        return {"message": "Conversation removed"}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.post(
     "/api/v1/conversations/{conversation_id}/messages",
     response_model=MessageExchangeResponse,
@@ -519,6 +636,189 @@ def send_conversation_message(
         db.close()
 
 
+@app.post(
+    "/api/v1/journal/photos",
+    response_model=JournalPhotoUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_journal_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    bucket = os.getenv("JOURNAL_S3_BUCKET")
+    if not bucket:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Journal photo storage is not configured yet.",
+        )
+
+    extension = JOURNAL_PHOTO_TYPES.get(file.content_type or "")
+    if extension is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Upload a JPG, PNG, or WebP photo.",
+        )
+
+    photo = await file.read(MAX_JOURNAL_PHOTO_BYTES + 1)
+    await file.close()
+    if len(photo) > MAX_JOURNAL_PHOTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Photo must be 8 MB or smaller.",
+        )
+
+    if not photo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The selected photo is empty.",
+        )
+
+    photo_key = f"journal/{current_user.id}/{uuid4().hex}.{extension}"
+    try:
+        _journal_s3_client().put_object(
+            Bucket=bucket,
+            Key=photo_key,
+            Body=photo,
+            ContentType=file.content_type,
+            ServerSideEncryption="AES256",
+        )
+        photo_url = _journal_photo_url(photo_key)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The photo could not be uploaded. Please try again.",
+        ) from exc
+
+    if photo_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The uploaded photo could not be opened.",
+        )
+    return JournalPhotoUploadResponse(photo_key=photo_key, photo_url=photo_url)
+
+
+@app.post(
+    "/api/v1/journal",
+    response_model=JournalEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_journal_entry(
+    request: JournalEntryCreateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    expected_photo_prefix = f"journal/{current_user.id}/"
+    if request.entry_type == "moment" and not request.photo_key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A moment needs a photo.",
+        )
+    if request.photo_key and not request.photo_key.startswith(expected_photo_prefix):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This photo does not belong to your journal.",
+        )
+
+    db = SessionLocal()
+    try:
+        trip = None
+        if request.trip_id is not None:
+            trip = (
+                db.query(Trip)
+                .filter(
+                    Trip.id == request.trip_id,
+                    Trip.user_id == current_user.id,
+                    Trip.is_deleted.is_(False),
+                )
+                .first()
+            )
+            if trip is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="The selected trip was not found.",
+                )
+
+        entry = JournalEntry(
+            user_id=current_user.id,
+            trip_id=trip.id if trip else None,
+            entry_type=request.entry_type,
+            title=request.title,
+            content=request.content,
+            location=request.location,
+            occurred_on=request.occurred_on,
+            photo_key=request.photo_key if request.entry_type == "moment" else None,
+            created_by=current_user.id,
+            updated_by=current_user.id,
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+        return _journal_entry_response(entry)
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.get("/api/v1/journal", response_model=list[JournalEntryResponse])
+def list_journal_entries(current_user: User = Depends(get_current_user)):
+    db = SessionLocal()
+    try:
+        entries = (
+            db.query(JournalEntry)
+            .filter(
+                JournalEntry.user_id == current_user.id,
+                JournalEntry.is_deleted.is_(False),
+            )
+            .order_by(
+                JournalEntry.occurred_on.desc().nullslast(),
+                JournalEntry.created_at.desc(),
+                JournalEntry.id.desc(),
+            )
+            .all()
+        )
+        return [_journal_entry_response(entry) for entry in entries]
+    finally:
+        db.close()
+
+
+@app.delete("/api/v1/journal/{entry_id}")
+def delete_journal_entry(
+    entry_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    db = SessionLocal()
+    try:
+        entry = (
+            db.query(JournalEntry)
+            .filter(
+                JournalEntry.id == entry_id,
+                JournalEntry.user_id == current_user.id,
+                JournalEntry.is_deleted.is_(False),
+            )
+            .first()
+        )
+        if entry is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Journal entry with id {entry_id} not found",
+            )
+
+        deleted_at = datetime.now(timezone.utc)
+        entry.is_deleted = True
+        entry.deleted_at = deleted_at
+        entry.deleted_by = current_user.id
+        entry.updated_at = deleted_at
+        entry.updated_by = current_user.id
+        db.commit()
+        return {"message": "Journal entry removed"}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.post("/api/v1/trips")
 def create_trip(
     request: TripRequest,
@@ -558,6 +858,7 @@ def create_trip(
         category=category,
         daily_budget=daily_budget,
         travel_style=request.travel_style,
+        departure_date=request.departure_date,
         ai_recommendation=ai_recommendation,
         # Ownership and audit identity always come from the verified JWT user.
         # The request schema forbids a frontend-supplied user_id.

@@ -10,7 +10,11 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # engine = the connection pool
-engine = create_engine(DATABASE_URL)
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not configured")
+
+# Reconnect when a pooled connection has expired on the managed database.
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # SessionLocal = a factory for DB sessions
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
@@ -27,5 +31,6 @@ def init_db() -> None:
     import models.user  # noqa: F401
     import models.trip  # noqa: F401
     import models.conversation  # noqa: F401
+    import models.journal  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
